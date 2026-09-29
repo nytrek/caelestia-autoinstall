@@ -163,11 +163,10 @@ screen and `yay` are never removed.
 
 - AUR errors like `failed to clone`, `404` or `unexpected EOF` usually mean the AUR
   is down for a while. Wait and run the script again.
-- Virtual machines need 3D acceleration enabled. If the bar still doesn't show and
-  `caelestia shell -l` says `Could not create EGL surface`:
-  ```
-  caelestia shell -k; LIBGL_ALWAYS_SOFTWARE=1 caelestia shell -d
-  ```
+- Virtual machines need 3D acceleration enabled. Their graphics can't give the shell
+  an EGL surface (`Could not create EGL surface`), so in a VM the script adds
+  `hl.env("LIBGL_ALWAYS_SOFTWARE", "1")` to `~/.config/caelestia/hypr-user.lua` and
+  the bar starts on every login. Delete that line if you move the configs to real hardware.
 - To restore your old configs by hand: `tar -xzf ~/caelestia-backup-DATE.tar.gz -C ~`.
   The official installer also leaves a full copy of `~/.config` in `~/.config.bak`.
 

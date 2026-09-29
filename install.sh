@@ -976,6 +976,26 @@ run_caelestia_installer() {
   note "Your tweaks go in ~/.config/caelestia/ (hypr-user.lua, hypr-vars.lua)"
 }
 
+# VM graphics can't give Quickshell an EGL surface ("Could not create EGL surface")
+# and the bar never shows up, so the session renders in software. hypr-user.lua is
+# loaded before the shell starts and caelestia update never touches it.
+vm_software_rendering() {
+  [ -n "$VIRT" ] || return 0
+  local file="${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/hypr-user.lua"
+  if grep -qs LIBGL_ALWAYS_SOFTWARE "$file"; then
+    ok "Software rendering already set for the VM"
+    return 0
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    dry "enable software rendering in $(tilde "$file")"
+    return 0
+  fi
+  mkdir -p "$(dirname "$file")"
+  printf '\n-- caelestia-autoinstall: VM without a usable GPU, delete on real hardware\nhl.env("LIBGL_ALWAYS_SOFTWARE", "1")\n' >>"$file"
+  ok "Software rendering enabled for the VM"
+  note "VM: software rendering is set in $(tilde "$file")"
+}
+
 install_apps() {
   step "Installing apps"
   if [ "${#EXTRA_PKGS[@]}" -eq 0 ]; then
@@ -1159,10 +1179,6 @@ cleanup_build_files() {
 
 print_summary() {
   local s rule
-  if [ -n "$VIRT" ]; then
-    note "VM: if the bar doesn't show up (\"Could not create EGL surface\"), run:"
-    note "  caelestia shell -k; LIBGL_ALWAYS_SOFTWARE=1 caelestia shell -d"
-  fi
   printf -v rule '%57s' ''
   rule=${rule// /─}
 
@@ -1213,6 +1229,7 @@ main() {
   resolve_conflicts
   install_dependencies
   run_caelestia_installer
+  vm_software_rendering
   install_apps
   ensure_session
   ensure_display_manager
