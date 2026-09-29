@@ -837,11 +837,11 @@ install_dependencies() {
   remove_conflicting_quickshell
   install_real_quickshell
 
-  if ! retry 2 task "AUR packages (some are compiled)" yay -S "${YAY_FLAGS[@]}" "${aur_pkgs[@]}"; then
+  if ! retry 2 aur_install "AUR packages (some are compiled)" "${aur_pkgs[@]}"; then
     warn "Batch install failed, trying one by one"
     failed=()
     for pkg in "${aur_pkgs[@]}"; do
-      retry 2 task "$pkg" yay -S "${YAY_FLAGS[@]}" "$pkg" || failed+=("$pkg")
+      retry 2 aur_install "$pkg" "$pkg" || failed+=("$pkg")
     done
     case " ${failed[*]} " in
       "  ") ;;
@@ -850,6 +850,55 @@ install_dependencies() {
     esac
   fi
   verify_quickshell
+}
+
+# When the AUR RPC is down yay falls back to the first provider it finds
+# (caelestia-cli-git instead of caelestia-cli) and the official installer then
+# clashes with it, so the AUR has to answer and the exact names are checked after
+aur_up() { curl -fsS --max-time 20 "https://aur.archlinux.org/rpc?v=5&type=info&arg=caelestia-cli" 2>/dev/null | grep -q '"resultcount":1'; }
+
+wait_for_aur() {
+  local i
+  for ((i = 1; i <= 12; i++)); do
+    aur_up && return 0
+    [ "$i" -gt 1 ] || warn "The AUR isn't answering, waiting up to 2 min"
+    sleep 10
+  done
+  return 1
+}
+
+# Installed packages that stand in for the given ones (caelestia-cli-git for caelestia-cli)
+# shellcheck disable=SC2317,SC2329
+substitutes() {
+  LC_ALL=C pacman -Qi 2>/dev/null | awk -v want=" $* " '
+    /^[^ ]/ { field = $1 }
+    /^Name / { name = $3 }
+    field == "Provides" {
+      if (/^Provides/) sub(/^Provides *: /, "")
+      for (i = 1; i <= NF; i++) {
+        p = $i
+        sub(/[<>=].*/, "", p)
+        if (p != name && index(want, " " p " ")) print name
+      }
+    }' | sort -u | paste -sd ' ' || true
+}
+
+# aur_install <label> <pkg...>
+# shellcheck disable=SC2317,SC2329
+aur_install() {
+  local label=$1 subs missing=() p
+  shift
+  wait_for_aur || { err "The AUR isn't answering"; return 1; }
+  subs=$(substitutes "$@")
+  if [ -n "$subs" ]; then
+    # shellcheck disable=SC2086
+    run sudo pacman -Rdd --noconfirm $subs || return 1
+    ok "Removed $subs (replaced by the packages Caelestia expects)"
+  fi
+  task "$label" yay -S "${YAY_FLAGS[@]}" "$@" || return 1
+  [ "$DRY_RUN" -eq 0 ] || return 0
+  for p in "$@"; do pkg_installed "$p" || missing+=("$p"); done
+  [ "${#missing[@]}" -eq 0 ] || { warn "Not installed by their exact name: ${missing[*]}"; return 1; }
 }
 
 quickshell_provider() { pacman -Q quickshell-git 2>/dev/null | awk '{print $1}' || true; }
@@ -906,6 +955,7 @@ remove_conflicting_quickshell() {
 run_caelestia_installer() {
   local args=(--noconfirm --aur-helper yay)
   [ "$DRY_RUN" -eq 1 ] || have caelestia || die "The caelestia command wasn't installed"
+  wait_for_aur || warn "The AUR still isn't answering, trying anyway"
 
   if [ -f "$DOTS_STATE" ] && [ "$RECONFIGURE" -eq 0 ]; then
     step "Updating Caelestia"
