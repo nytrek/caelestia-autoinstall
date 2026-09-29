@@ -133,7 +133,7 @@ failure_hints() {
   info "Running the script again resumes where it stopped."
 }
 
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 on_error() {
   local code=$1 lineno=$2
   err "Failed during \"$STEP\" (line $lineno, exit $code)"
@@ -141,7 +141,7 @@ on_error() {
   exit "$code"
 }
 
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 on_interrupt() {
   [ -z "$TASK_PID" ] || kill "$TASK_PID" 2>/dev/null || true
   printf '\r\e[K' >&3
@@ -149,7 +149,7 @@ on_interrupt() {
   exit 130
 }
 
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 on_exit() {
   [ -z "$SUDO_PID" ] || kill "$SUDO_PID" 2>/dev/null || true
   [ -z "$TMP_DIR" ] || rm -rf "$TMP_DIR"
@@ -677,7 +677,7 @@ ensure_base_tools() {
     die "Couldn't install the base tools"
 }
 
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 makepkg_in() { cd "$1" && makepkg -si --noconfirm; }
 
 ensure_yay() {

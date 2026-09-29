@@ -62,10 +62,10 @@ die() {
   exit 1
 }
 
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 on_error() { die "Failed at line $2 (exit $1)"; }
 
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 on_exit() { [ -z "$SUDO_PID" ] || kill "$SUDO_PID" 2>/dev/null || true; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -142,7 +142,7 @@ find_packages() {
   local dm
   dm=$(basename "$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)" .service 2>/dev/null || true)
   while read -r p; do
-    [ -n "$p" ] && [ "$p" != "$dm" ] || continue
+    if [ -z "$p" ] || [ "$p" = "$dm" ]; then continue; fi
     [[ "$p" =~ $PROTECTED ]] || PKGS+=("$p")
   done < <(comm -13 <(sort "$STATE_DIR/packages-before") <(pacman -Qqe | sort))
 }
